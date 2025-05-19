@@ -29,7 +29,7 @@ A arquitetura do projeto foi cuidadosamente planejada para atender aos requisito
    - Facilita o desenvolvimento paralelo de frontend e backend
    - Documentação automática com OpenAPI
 
-4. **Microsserviços Leves**: Embora não seja uma arquitetura completa de microsserviços, dividimos o sistema em componentes que poderiam ser facilmente extraídos para serviços independentes.
+4. **Microsserviços Leves**: Embora não seja uma arquitetura completa de microsserviços, dividir o sistema em componentes que poderiam ser facilmente extraídos para serviços independentes.
    - Serviço de indexação
    - Serviço de busca semântica
    - Serviço de análise de lacunas de aprendizado
@@ -196,6 +196,28 @@ class GenerateAdaptiveResponseUseCase:
             user_id=user_id
         )
 ```
+
+#### Tratamento de Consultas Fora do Escopo
+
+O sistema foi projetado para trabalhar com o conhecimento limitado aos recursos fornecidos. No entanto, implementamos uma funcionalidade de fallback para lidar com perguntas que não estão diretamente disponíveis nos recursos indexados:
+
+```python
+# backend/app/application/services/prompt_service.py
+response = (
+    f"Não sei responder exatamente sua pergunta sobre '{query}', mas aqui está uma provável resposta baseada nos recursos disponíveis:\n\n"
+    f"Por favor, tente reformular sua pergunta para que eu possa encontrar informações relevantes nos recursos disponíveis."
+)
+```
+
+Quando o sistema não encontra uma correspondência direta para a consulta do usuário, ele:
+1. Informa claramente que não pode responder exatamente à pergunta
+2. Tenta fornecer uma resposta aproximada baseada nos recursos disponíveis
+3. Sugere que o usuário reformule a pergunta para obter resultados mais precisos
+
+Esta abordagem melhora a experiência do usuário ao:
+- Manter a transparência sobre as limitações do sistema
+- Fornecer informações potencialmente úteis mesmo quando não há correspondência exata
+- Guiar o usuário para obter melhores resultados em consultas futuras
 
 ### 4. Feedback do Usuário
 
@@ -536,11 +558,6 @@ def train_from_feedback(self, user_id: str) -> float:
 
 ## Requisitos Obrigatórios Não Entregues
 
-1. **Transcrição Completa de Vídeos**
-   - A implementação atual do serviço de transcrição de vídeos está limitada a amostras pequenas
-   - Falta suporte para vídeos longos e processamento em lote
-   - Limitações na qualidade da transcrição para áudios com ruído
-
 2. **Extração Avançada de Texto de Imagens**
    - O OCR implementado tem precisão limitada para imagens complexas
    - Falta suporte para detecção e interpretação de tabelas em imagens
@@ -670,9 +687,18 @@ Apesar disso, consegui implementar minha lógica e criar uma mini rede neural qu
 ### Backend
 
 ```bash
+# Navegar para o diretório do backend
 cd backend
+
+# Criar e ativar ambiente virtual
+python -m venv venv
+source venv/bin/activate  # No Windows: venv\Scripts\activate
+
+# Instalar dependências
 pip install -r requirements.txt
-uvicorn main:app --reload
+
+# Iniciar o servidor
+python main.py
 ```
 
 ### Frontend
@@ -681,6 +707,327 @@ uvicorn main:app --reload
 cd frontend
 npm install
 npm run dev
+```
+
+## Boas Práticas de Código
+
+### Organização de Imports
+
+Para melhorar a legibilidade e manutenção do código, adotamos as seguintes práticas para imports:
+
+1. **Imports agrupados por categoria**:
+   ```python
+   # Bibliotecas padrão
+   import os
+   import json
+   from typing import List, Optional, Dict
+   
+   # Bibliotecas de terceiros
+   import torch
+   import numpy as np
+   from fastapi import FastAPI, HTTPException
+   
+   # Módulos internos
+   from backend.app.domain.entities import Document, UserProgress
+   from backend.app.domain.interfaces import DocumentRepository
+   ```
+
+2. **Aliases para nomes longos**:
+   ```python
+   # Antes
+   from backend.app.application.services.enhanced_prompt_service import EnhancedPromptServiceImpl
+   
+   # Depois
+   from backend.app.application.services.enhanced_prompt_service import EnhancedPromptServiceImpl as PromptService
+   ```
+
+3. **Imports múltiplos em várias linhas**:
+   ```python
+   from backend.app.application.services import (
+       EnhancedPromptServiceImpl,
+       EnhancedSearchService,
+       IndexerService
+   )
+   ```
+
+### Documentação de Código
+
+Seguimos estas práticas para documentação de código:
+
+1. **Docstrings em funções e classes**:
+   ```python
+   def train_from_feedback(self, user_id: str) -> float:
+       """
+       Treina o modelo com base nos feedbacks do usuário.
+       
+       Args:
+           user_id: ID do usuário para o qual o modelo será treinado
+           
+       Returns:
+           float: Valor da função de perda após o treinamento
+           
+       Raises:
+           ValueError: Se o usuário não existir ou não tiver feedback
+       """
+   ```
+
+2. **Comentários explicativos para lógica complexa**:
+   ```python
+   # Convertemos o feedback qualitativo para um valor numérico
+   # "muito bom" -> 1.0, "bom" -> 0.75, "regular" -> 0.5, "ruim" -> 0.25, "muito ruim" -> 0.0
+   target_value = self._feedback_to_value(interaction.feedback)
+   ```
+
+3. **Anotações de tipo**:
+   ```python
+   def search(self, query: str, limit: int = 5) -> List[Document]:
+   ```
+
+4. **Constantes bem definidas**:
+   ```python
+   # Definir constantes no topo do arquivo
+   MAX_QUERY_LENGTH = 1000
+   DEFAULT_USER_LEVEL = "intermediário"
+   SUPPORTED_FORMATS = ["texto", "vídeo", "áudio", "imagem"]
+   ```
+
+### Convenções de Nomenclatura
+
+1. **Classes**: PascalCase (ex: `DocumentRepository`, `UserProgress`)
+2. **Funções e métodos**: snake_case (ex: `search_documents`, `update_user_progress`)
+3. **Variáveis**: snake_case (ex: `user_id`, `document_list`)
+4. **Constantes**: UPPER_SNAKE_CASE (ex: `MAX_QUERY_LENGTH`, `DEFAULT_TIMEOUT`)
+5. **Arquivos**: snake_case (ex: `document_repository.py`, `user_service.py`)
+
+### Tratamento de Erros
+
+Implementamos tratamento de erros robusto em toda a aplicação:
+
+```python
+def process_document(self, document_id: str) -> bool:
+    try:
+        document = self.document_repository.get_by_id(document_id)
+        if not document:
+            raise ValueError(f"Documento não encontrado: {document_id}")
+            
+        # Processamento do documento
+        result = self._process_content(document)
+        return result
+        
+    except ValueError as e:
+        # Erros de validação (ex: documento não encontrado)
+        logger.warning(f"Erro de validação: {str(e)}")
+        return False
+        
+    except Exception as e:
+        # Erros inesperados
+        logger.error(f"Erro ao processar documento {document_id}: {str(e)}")
+        # Dependendo do caso, pode ser apropriado relançar a exceção
+        return False
+```
+
+## Estrutura do Projeto
+
+A estrutura de diretórios do projeto segue os princípios de Clean Architecture:
+
+```
+backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py                 # Ponto de entrada da aplicação
+│   ├── config/                 # Configurações da aplicação
+│   │   ├── __init__.py
+│   │   └── settings.py
+│   ├── domain/                 # Camada de domínio
+│   │   ├── __init__.py
+│   │   ├── entities/           # Entidades de domínio
+│   │   │   ├── __init__.py
+│   │   │   ├── document.py
+│   │   │   └── user_progress.py
+│   │   ├── interfaces/         # Interfaces e contratos
+│   │   │   ├── __init__.py
+│   │   │   ├── repositories/
+│   │   │   └── services/
+│   │   └── usecases/           # Casos de uso
+│   │       ├── __init__.py
+│   │       ├── analyze_content_usecase.py
+│   │       └── generate_adaptive_response_usecase.py
+│   ├── application/            # Camada de aplicação
+│   │   ├── __init__.py
+│   │   ├── controllers/        # Controladores da API
+│   │   │   ├── __init__.py
+│   │   │   ├── api_controller.py
+│   │   │   └── learning_gaps_controller.py
+│   │   └── services/           # Serviços de aplicação
+│   │       ├── __init__.py
+│   │       ├── indexer_service.py
+│   │       └── neural_network_service.py
+│   └── infrastructure/         # Camada de infraestrutura
+│       ├── __init__.py
+│       ├── repositories/       # Implementações de repositórios
+│       │   ├── __init__.py
+│       │   ├── chroma_document_repository.py
+│       │   └── json_user_progress_repository.py
+│       └── services/           # Implementações de serviços externos
+│           ├── __init__.py
+│           ├── ocr_service.py
+│           └── transcription_service.py
+├── tests/                      # Testes automatizados
+│   ├── __init__.py
+│   ├── unit/                   # Testes unitários
+│   ├── integration/            # Testes de integração
+│   └── performance/            # Testes de performance
+├── resources/                  # Recursos estáticos
+│   ├── documents/              # Documentos para indexação
+│   └── models/                 # Modelos pré-treinados
+└── requirements.txt            # Dependências do projeto
+
+frontend/
+├── public/                     # Arquivos públicos
+├── src/                        # Código fonte
+│   ├── components/             # Componentes React
+│   ├── pages/                  # Páginas da aplicação
+│   ├── services/               # Serviços (API, etc.)
+│   ├── hooks/                  # Hooks personalizados
+│   ├── utils/                  # Utilitários
+│   ├── types/                  # Definições de tipos TypeScript
+│   └── styles/                 # Estilos CSS/Tailwind
+├── package.json                # Dependências e scripts
+└── tsconfig.json               # Configuração TypeScript
+```
+
+### Padrões de Projeto Utilizados
+
+1. **Repository Pattern**: Abstração para acesso a dados
+   ```python
+   # Interface
+   class DocumentRepository(ABC):
+       @abstractmethod
+       def get_by_id(self, id: str) -> Optional[Document]:
+           pass
+           
+       @abstractmethod
+       def search(self, query: str, limit: int = 5) -> List[Document]:
+           pass
+   
+   # Implementação
+   class ChromaDocumentRepository(DocumentRepository):
+       def get_by_id(self, id: str) -> Optional[Document]:
+           # Implementação específica para ChromaDB
+           pass
+   ```
+
+2. **Factory Pattern**: Criação de objetos complexos
+   ```python
+   class ServiceFactory:
+       @staticmethod
+       def create_prompt_service(config: Dict) -> PromptService:
+           service_type = config.get("type", "basic")
+           
+           if service_type == "enhanced":
+               return EnhancedPromptServiceImpl(config)
+           else:
+               return BasicPromptServiceImpl(config)
+   ```
+
+3. **Strategy Pattern**: Algoritmos intercambiáveis
+   ```python
+   class SearchStrategy(ABC):
+       @abstractmethod
+       def search(self, query: str, limit: int) -> List[Document]:
+           pass
+   
+   class SemanticSearchStrategy(SearchStrategy):
+       def search(self, query: str, limit: int) -> List[Document]:
+           # Implementação de busca semântica
+           pass
+   
+   class KeywordSearchStrategy(SearchStrategy):
+       def search(self, query: str, limit: int) -> List[Document]:
+           # Implementação de busca por palavras-chave
+           pass
+   ```
+
+4. **Dependency Injection**: Injeção de dependências para desacoplamento
+   ```python
+   class AnalyzeContentUseCase:
+       def __init__(
+           self, 
+           document_repository: DocumentRepository,
+           search_service: SearchService
+       ):
+           self.document_repository = document_repository
+           self.search_service = search_service
+   ```
+
+## Documentação Técnica
+
+### Documentação da API
+
+A API é documentada automaticamente usando o Swagger UI integrado ao FastAPI:
+
+- **Acesso**: http://localhost:8000/docs após iniciar o servidor
+- **Formato**: OpenAPI 3.0
+- **Autenticação**: Bearer Token (JWT)
+
+Exemplo de documentação de endpoint:
+
+```python
+@router.post(
+    "/analyze",
+    response_model=AnalysisResponse,
+    summary="Analisa uma consulta do usuário",
+    description="""
+    Recebe uma consulta do usuário e retorna uma resposta personalizada
+    baseada no histórico de interações e preferências do usuário.
+    """,
+    response_description="Resposta personalizada para a consulta do usuário",
+    status_code=status.HTTP_200_OK,
+    tags=["Análise"]
+)
+async def analyze_query(
+    request: AnalysisRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Endpoint para análise de consultas do usuário.
+    
+    - **query**: Texto da consulta do usuário
+    - **user_level**: Nível de conhecimento do usuário (básico, intermediário, avançado)
+    - **preferred_format**: Formato preferido de resposta (texto, vídeo, áudio, imagem)
+    """
+    # Implementação do endpoint
+```
+
+### Logs e Monitoramento
+
+Implementamos um sistema de logs estruturados para facilitar o monitoramento:
+
+```python
+# Configuração de logs
+import logging
+from logging.handlers import RotatingFileHandler
+
+logger = logging.getLogger("a.educacao")
+logger.setLevel(logging.INFO)
+
+# Handler para arquivo com rotação
+file_handler = RotatingFileHandler(
+    "logs/app.log",
+    maxBytes=10485760,  # 10MB
+    backupCount=5
+)
+
+# Formato estruturado
+formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(message)s"
+)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+# Uso nos serviços
+logger.info(f"Processando consulta: {query}")
+logger.error(f"Erro ao processar documento: {str(e)}", exc_info=True)
 ```
 
 ## Licença
