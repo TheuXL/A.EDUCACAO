@@ -1,0 +1,4 @@
+Arquivo de vídeo: Dica do professor.mp4
+Caminho original: /home/matheus/test-A.EDUCACAO/backend/resources/Dica do professor.mp4
+Caminho processado: /home/matheus/test-A.EDUCACAO/backend/processed_data/videos/Dica do professor.mp4
+Não foi possível extrair áudio ou transcrição devido à falta de dependências.

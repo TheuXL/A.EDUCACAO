@@ -1,0 +1,21 @@
+{
+  "batch_indexing": {
+    "num_files": 50,
+    "elapsed_time": 3.3868472576141357,
+    "indexing_rate": 14.762992304300873,
+    "success": true
+  },
+  "realtime_indexing": {
+    "num_files": 20,
+    "total_time": 13.388412237167358,
+    "avg_processing_time": 0.6694206118583679,
+    "interval": 0.5
+  },
+  "api_response": null,
+  "system_info": {
+    "cpu_count": 12,
+    "total_memory": 6.7198944091796875,
+    "platform": "linux"
+  },
+  "timestamp": "2025-05-17 00:18:24"
+}
